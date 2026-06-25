@@ -14,6 +14,9 @@ export class NetworkManager {
     public onDisconnected?: () => void;
     public onError?: (err: Error | any) => void;
 
+    // --------------------------------------------------------
+    // HOST LOGIC
+    // --------------------------------------------------------
     public hostGame(): void {
         this.role = 'HOST';
         const roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
