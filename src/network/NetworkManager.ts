@@ -8,44 +8,37 @@ export class NetworkManager {
     private connection: DataConnection | null = null;
     public role: NetworkRole = 'OFFLINE';
 
-    // Decoupled Logic Hooks
     public onReady?: (roomId: string) => void;
     public onConnected?: () => void;
     public onDataReceived?: (data: any) => void;
     public onDisconnected?: () => void;
-    public onError?: (err: Error | string) => void;
+    public onError?: (err: Error | any) => void;
 
-    // --------------------------------------------------------
-    // HOST LOGIC
-    // --------------------------------------------------------
     public hostGame(): void {
         this.role = 'HOST';
-        
-        // Generate a random 5-character alphanumeric room code
         const roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
-        
         this.peer = new Peer(roomId);
 
-        this.peer.on('open', (id) => {
+        // ADDED : string
+        this.peer.on('open', (id: string) => {
             console.log(`[Network] Hosting Room: ${id}`);
             if (this.onReady) this.onReady(id);
         });
 
-        this.peer.on('connection', (conn) => {
+        // ADDED : DataConnection
+        this.peer.on('connection', (conn: DataConnection) => {
             console.log(`[Network] Client connecting...`);
-            
-            // If someone tries to connect while we already have a player, reject them
             if (this.connection && this.connection.open) {
                 console.warn(`[Network] Rejecting extra connection.`);
                 conn.close();
                 return;
             }
-
             this.connection = conn;
             this.setupConnectionListeners(this.connection);
         });
 
-        this.peer.on('error', (err) => {
+        // ADDED : any
+        this.peer.on('error', (err: any) => {
             if (this.onError) this.onError(err);
         });
     }
@@ -55,15 +48,16 @@ export class NetworkManager {
     // --------------------------------------------------------
     public joinGame(roomId: string): void {
         this.role = 'CLIENT';
-        this.peer = new Peer(); // Client doesn't need a specific ID
+        this.peer = new Peer(); 
 
         this.peer.on('open', () => {
             console.log(`[Network] Attempting to join Room: ${roomId}`);
-            this.connection = this.peer!.connect(roomId, { reliable: false }); // UDP-style preference for fast game states
+            this.connection = this.peer!.connect(roomId, { reliable: false }); 
             this.setupConnectionListeners(this.connection);
         });
 
-        this.peer.on('error', (err) => {
+        // ADDED : any
+        this.peer.on('error', (err: any) => {
             if (this.onError) this.onError(err);
         });
     }
@@ -77,7 +71,8 @@ export class NetworkManager {
             if (this.onConnected) this.onConnected();
         });
 
-        conn.on('data', (data) => {
+        // ADDED : any
+        conn.on('data', (data: any) => {
             if (this.onDataReceived) this.onDataReceived(data);
         });
 
@@ -88,7 +83,8 @@ export class NetworkManager {
             if (this.onDisconnected) this.onDisconnected();
         });
         
-        conn.on('error', (err) => {
+        // ADDED : any
+        conn.on('error', (err: any) => {
             if (this.onError) this.onError(err);
         });
     }
