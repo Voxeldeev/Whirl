@@ -32,3 +32,12 @@ export interface GameStatePacket {
     explosions: { id: string, x: number, y: number, radius: number, lifePercent: number }[];
     trails: { id: string, x: number, y: number, radius: number, lifePercent: number }[];
 }
+
+export interface MatchEventPacket {
+    type: PacketType.MATCH_EVENT;
+    action: 'CLIENT_READY' | 'START_MATCH';
+    payload?: {
+        loadout: any[];
+        color: string;
+    };
+}
