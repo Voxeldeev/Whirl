@@ -14,12 +14,14 @@ export interface ClientInputPacket {
         s: boolean;
         d: boolean;
         space: boolean;
+        spacePressed: boolean;
     };
     mouse: {
         x: number;
         y: number;
         leftDown: boolean;
         rightDown: boolean;
+        leftPressed: boolean;
     };
 }
 

@@ -45,8 +45,8 @@ let allBoomerangs: Boomerang[] = [];
 const boomerangControllers: BoomerangController[] = [];
 
 let remoteInputState = {
-    keys: { w: false, a: false, s: false, d: false, space: false },
-    mouse: { x: 0, y: 0, leftDown: false, rightDown: false }
+    keys: { w: false, a: false, s: false, d: false, space: false, spacePressed: false },
+    mouse: { x: 0, y: 0, leftDown: false, rightDown: false, leftPressed: false }
 };
 
 function spawnTrail(t: Trail) { allTrails.push(t); }
@@ -60,8 +60,12 @@ const levelObstacles = [new Obstacle('wall_test', 900, 260, 200, 200)];
 const timerSystem = new TimerSystem();
 const explosionSystem = new ExplosionSystem();
 const trailSystem = new TrailSystem();
+
+// Controllers
 const playerController = new PlayerController(localPlayer, input, timerSystem, allBoomerangs, allExplosions, allPlayers, allTrails);
+const remoteActionController = new PlayerController(remotePlayer, input, timerSystem, allBoomerangs, allExplosions, allPlayers, allTrails);
 const remotePuppetController = new PuppetController(remotePlayer);
+
 const physicsSystem = new PhysicsSystem();
 physicsSystem.setObstacles(levelObstacles);
 const combatSystem = new CombatSystem();
@@ -147,19 +151,46 @@ function applyGameState(state: GameStatePacket) {
 }
 
 function handleRemoteInput(dt: number) {
+    // CRITICAL: Ensure the remote player's cooldowns are actually ticking down on the Host!
+    remotePlayer.updateTimers(dt); 
+
     if (remotePlayer.state === PlayerState.DEAD || remotePlayer.state === PlayerState.KNOCKED_BACK) return;
+    
     const { keys, mouse } = remoteInputState;
+    
+    // --- 1. CONTINUOUS MOVEMENT & AIMING ---
     let vx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
     let vy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
     if (vx !== 0 && vy !== 0) { const l = Math.sqrt(vx*vx + vy*vy); vx/=l; vy/=l; }
+    
     remotePlayer.targetVelocity.vx = vx * remotePlayer.speed;
     remotePlayer.targetVelocity.vy = vy * remotePlayer.speed;
     remotePlayer.rotation = Math.atan2(mouse.y - remotePlayer.transform.y, mouse.x - remotePlayer.transform.x);
+    
     const maxDelta = (remotePlayer.speed / 0.075) * dt;
     remotePlayer.velocity.vx += Math.sign(remotePlayer.targetVelocity.vx - remotePlayer.velocity.vx) * Math.min(Math.abs(remotePlayer.targetVelocity.vx - remotePlayer.velocity.vx), maxDelta);
     remotePlayer.velocity.vy += Math.sign(remotePlayer.targetVelocity.vy - remotePlayer.velocity.vy) * Math.min(Math.abs(remotePlayer.targetVelocity.vy - remotePlayer.velocity.vy), maxDelta);
+    
     remotePlayer.transform.x += remotePlayer.velocity.vx * dt;
     remotePlayer.transform.y += remotePlayer.velocity.vy * dt;
+
+    // --- 2. ACTIONS ---
+    if (keys.spacePressed) {
+        remoteActionController.attemptDash(remotePlayer.targetVelocity.vx, remotePlayer.targetVelocity.vy);
+    }
+
+    if (mouse.rightDown) {
+        remoteActionController.attemptBlock();
+    }
+
+    if (mouse.leftPressed) {
+        // Shoot boomerang as remote player
+        spawnBoomerang(new Boomerang('boom_remote_' + Date.now(), remotePlayer.id, []));
+    }
+
+    // --- 3. THE NETWORK TRAP FIX (WIPE TRIGGERS) ---
+    remoteInputState.keys.spacePressed = false;
+    remoteInputState.mouse.leftPressed = false;
 }
 
 const engine = new GameLoop((dt) => {

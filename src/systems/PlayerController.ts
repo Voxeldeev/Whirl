@@ -85,27 +85,39 @@ export class PlayerController {
         }
     }
 
+    // Replace your existing handleActions() with this:
     private handleActions(): void {
-        if (this.input.isRightMouseDown && this.player.blockCooldown <= 0) {
+        if (this.input.isRightMouseDown) {
+            this.attemptBlock();
+        }
+
+        if (this.input.wasKeyPressed('Space')) {
+            this.attemptDash(this.player.targetVelocity.vx, this.player.targetVelocity.vy);
+        }
+    }
+
+    // ⬇️ ADD THESE TWO NEW PUBLIC METHODS ⬇️
+
+    public attemptBlock(): void {
+        if (this.player.blockCooldown <= 0) {
             this.player.state = PlayerState.BLOCKING;
             this.player.stateTimer = 0.5; 
             this.player.blockCooldown = 1.0; 
             this.player.velocity = { vx: 0, vy: 0 };
             this.player.targetVelocity = { vx: 0, vy: 0 };
             
-            this.triggerBlockModifiers();
-            return;
+            this.triggerBlockModifiers(); // This will now work for the remote player too!
         }
+    }
 
-        if (this.input.wasKeyPressed('Space') && this.player.dashCooldown <= 0) {
-            if (this.player.targetVelocity.vx !== 0 || this.player.targetVelocity.vy !== 0) {
-                this.player.state = PlayerState.DASHING;
-                this.player.stateTimer = 0.15; 
-                this.player.dashCooldown = 0.5; 
-                
-                this.player.velocity.vx = this.player.targetVelocity.vx * 3;
-                this.player.velocity.vy = this.player.targetVelocity.vy * 3;
-            }
+    public attemptDash(vx: number, vy: number): void {
+        if (this.player.dashCooldown <= 0 && (vx !== 0 || vy !== 0)) {
+            this.player.state = PlayerState.DASHING;
+            this.player.stateTimer = 0.15; 
+            this.player.dashCooldown = 0.5; 
+            
+            this.player.velocity.vx = vx * 3;
+            this.player.velocity.vy = vy * 3;
         }
     }
 
