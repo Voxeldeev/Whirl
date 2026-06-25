@@ -1,6 +1,8 @@
 // src/systems/BoomerangRenderer.ts
+
 import { Boomerang } from '../entities/Boomerang';
 import { BoomerangState } from '../core/interfaces';
+import { Theme } from '../core/Theme';
 
 export class BoomerangRenderer {
     constructor(private ctx: CanvasRenderingContext2D) {}
@@ -13,41 +15,40 @@ export class BoomerangRenderer {
             const radius = boomerang.radius;
 
             this.ctx.save();
+            
+            // 1. Move to the boomerang's coordinate and apply the spin
             this.ctx.translate(x, y);
             this.ctx.rotate(boomerang.rotationAngle);
 
-            this.ctx.beginPath();
-            this.ctx.arc(0, 0, radius, 0, Math.PI * 1.5, false); 
-            this.ctx.lineTo(0, 0); 
+            // 2. Offset the drawing context slightly to the left.
+            // This ensures the crescent spins symmetrically around its 
+            // center of gravity, preventing an eccentric "wobble".
+            this.ctx.translate(-radius * 0.4, 0);
 
-            switch (boomerang.state) {
-                case BoomerangState.CHARGING:
-                    const chargePercent = boomerang.chargeTimer / 3.0;
-                    this.ctx.fillStyle = `rgba(255, ${200 - (chargePercent * 100)}, 0, 1)`;
-                    break;
-                case BoomerangState.LIVE:
-                    this.ctx.fillStyle = '#FFA502'; 
-                    this.ctx.shadowBlur = 15;
-                    this.ctx.shadowColor = '#FFA502';
-                    break;
-                case BoomerangState.RECALL:
-                    this.ctx.fillStyle = '#FF4757'; 
-                    this.ctx.shadowBlur = 10;
-                    this.ctx.shadowColor = '#FF4757';
-                    break;
-                case BoomerangState.DECELERATING:
-                    this.ctx.fillStyle = '#ff7f8a'; 
-                    this.ctx.shadowBlur = 5;
-                    this.ctx.shadowColor = '#ff7f8a';
-                    break;
-                case BoomerangState.GHOST:
-                    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; 
-                    this.ctx.shadowBlur = 0;
-                    break;
+            this.ctx.beginPath();
+            
+            // 3. Draw the outer curve (A perfect half-circle on the right side)
+            // Starts at the top (1.5 PI), swings right, ends at the bottom (0.5 PI)
+            this.ctx.arc(0, 0, radius, Math.PI * 1.5, Math.PI * 0.5, false); 
+            
+            // 4. Draw the inner curve to scoop out the crescent
+            // Curves from the bottom back to the top, pulled inward by the control point
+            this.ctx.quadraticCurveTo(radius * 0.5, 0, 0, -radius);
+            
+            this.ctx.closePath();
+
+            this.ctx.fillStyle = Theme.boomFill;
+            this.ctx.lineWidth = 2;
+
+            // Ghosted weapons get a gray outline, live weapons get white
+            if (boomerang.state === BoomerangState.GHOST) {
+                this.ctx.strokeStyle = Theme.boomGhostOutline;
+            } else {
+                this.ctx.strokeStyle = Theme.boomOutline;
             }
 
             this.ctx.fill();
-            this.ctx.closePath();
+            this.ctx.stroke();
             this.ctx.restore();
         }
     }

@@ -9,6 +9,7 @@ export class Boomerang {
     public transform: Transform;
     public velocity: Velocity;
     public state: BoomerangState = BoomerangState.HIDDEN;
+    public hitIds: Set<string> = new Set();
     
     // Core Stats
     public baseDamage: number = 10;
@@ -28,6 +29,12 @@ export class Boomerang {
     public isTemporary: boolean = false;
     public isDead: boolean = false;
     public hasDivided: boolean = false;
+
+    public trailTimer: number = 0;
+
+    public isReviveAttacking: boolean = false;
+    public reviveTargetX: number = 0;
+    public reviveTargetY: number = 0;
 
     constructor(id: string, ownerId: string, loadout: ModifierId[] = []) {
         this.id = id;
@@ -83,6 +90,8 @@ export class Boomerang {
         this.recallTimer = 0;
         this.currentDamage = this.baseDamage; 
         this.velocity = { vx: 0, vy: 0 };
-        this.hasDivided = false; // Reset so it can divide again next throw
+        this.hasDivided = false;
+        this.isReviveAttacking = false;
+        this.hitIds.clear();
     }
 }

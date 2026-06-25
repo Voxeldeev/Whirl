@@ -44,8 +44,7 @@ export class PhysicsSystem {
     }
 
     private checkBoomerangCollision(boomerang: Boomerang, obstacle: Obstacle): void {
-        // We now only ignore HIDDEN and CHARGING.
-        // LIVE, GHOST, RECALL, and DECELERATING will all bounce.
+        if (boomerang.isReviveAttacking) return;
         if (
             boomerang.state === BoomerangState.HIDDEN || 
             boomerang.state === BoomerangState.CHARGING

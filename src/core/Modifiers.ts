@@ -11,7 +11,7 @@ export enum ModifierId {
     BULLET = 'BULLET',           // B2 X
     DIVIDE = 'DIVIDE',           // B3 X
     SNAIL = 'SNAIL',             // B4 Boomerang leaves a temporary (5s) trail that slows opponent while crossing
-    DEMOMANIAC = 'DEMOMANIAC',   // B5 X
+    DEMO = 'DEMO',   // B5 X
     REVIVE = 'REVIVE'            // B6 Blocking causes ghost boomerang(s) to accelerate toward opponent, ignoring walls (target position recorded upon block, not updated)
 }
 

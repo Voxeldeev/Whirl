@@ -5,6 +5,7 @@ import { Player } from '../entities/Player';
 import { InputManager } from '../core/InputManager';
 import { BoomerangState, PlayerState } from '../core/interfaces';
 import { ModifierId } from '../core/Modifiers';
+import { Trail } from '../entities/Trail';
 
 export class BoomerangController {
     private readonly MAX_CHARGE_TIME = 3.0; 
@@ -14,11 +15,11 @@ export class BoomerangController {
         private boomerang: Boomerang,
         private player: Player,
         private input: InputManager,
-        private spawnCallback?: (b: Boomerang) => void // Dynamic Spawner for DIVIDE
+        private spawnCallback?: (b: Boomerang) => void,
+        private spawnTrailCallback?: (t: Trail) => void
     ) {}
 
     public update(dt: number): void {
-        // 1. UNIVERSAL CATCH LOGIC
         const catchableStates = [
             BoomerangState.GHOST, 
             BoomerangState.RECALL, 
@@ -30,9 +31,7 @@ export class BoomerangController {
             const dy = this.player.transform.y - this.boomerang.transform.y;
             const distanceToPlayer = Math.sqrt(dx * dx + dy * dy);
 
-            // If overlap occurs with owner
             if (distanceToPlayer < this.player.radius + this.boomerang.radius) {
-                // Temporary clones die when caught. Main weapon resets to hand.
                 if (this.boomerang.isTemporary) {
                     this.boomerang.isDead = true;
                 } else {
@@ -42,17 +41,22 @@ export class BoomerangController {
             }
         }
 
-        // 2. DYNAMIC SPIN CALCULATION
         if (this.boomerang.state !== BoomerangState.HIDDEN && this.boomerang.state !== BoomerangState.CHARGING) {
             const currentSpeed = Math.sqrt(this.boomerang.velocity.vx ** 2 + this.boomerang.velocity.vy ** 2);
-            const spinRate = 15 * (currentSpeed / this.boomerang.speed); 
+            const spinRate = 75 * (currentSpeed / this.boomerang.speed); 
             
             if (currentSpeed > 10) {
                 this.boomerang.rotationAngle += spinRate * dt;
             }
         }
 
-        // 3. STATE MACHINE
+        // B6 (REVIVE): Straight line attack override
+        if (this.boomerang.isReviveAttacking) {
+            this.handleReviveAttack(dt);
+            this.dropSnailTrail(dt);
+            return; 
+        }
+
         switch (this.boomerang.state) {
             case BoomerangState.HIDDEN: this.handleHidden(); break;
             case BoomerangState.CHARGING: this.handleCharging(dt); break;
@@ -61,15 +65,65 @@ export class BoomerangController {
             case BoomerangState.RECALL: this.handleRecall(dt); break;
             case BoomerangState.DECELERATING: this.handleDecelerating(dt); break;
         }
+
+        this.dropSnailTrail(dt);
+    }
+
+    private dropSnailTrail(dt: number): void {
+        if (this.boomerang.hasModifier(ModifierId.SNAIL) && this.spawnTrailCallback) {
+            const speed = Math.sqrt(this.boomerang.velocity.vx ** 2 + this.boomerang.velocity.vy ** 2);
+            if (speed > 50) { 
+                this.boomerang.trailTimer += dt;
+                
+                if (this.boomerang.trailTimer >= 0.05) { 
+                    this.boomerang.trailTimer = 0;
+                    
+                    // Scale radius with speed to bridge the gap between 0.05s intervals
+                    const dynamicRadius = Math.max(
+                        this.boomerang.radius, 
+                        (speed * 0.02) / 2 + this.boomerang.radius
+                    );
+
+                    this.spawnTrailCallback(new Trail(
+                        `trail_${Date.now()}_${Math.random()}`, 
+                        this.boomerang.ownerId, 
+                        this.boomerang.transform.x, 
+                        this.boomerang.transform.y, 
+                        dynamicRadius
+                    ));
+                }
+            }
+        }
+    }
+
+    private handleReviveAttack(dt: number): void {
+        const accel = 2500;
+        
+        // TargetX and TargetY were repurposed into a normalized direction vector by PlayerController
+        this.boomerang.velocity.vx += this.boomerang.reviveTargetX * accel * dt;
+        this.boomerang.velocity.vy += this.boomerang.reviveTargetY * accel * dt;
+
+        const maxSpeed = 1200;
+        const currentSpeed = Math.sqrt(this.boomerang.velocity.vx ** 2 + this.boomerang.velocity.vy ** 2);
+        if (currentSpeed > maxSpeed) {
+            this.boomerang.velocity.vx = (this.boomerang.velocity.vx / currentSpeed) * maxSpeed;
+            this.boomerang.velocity.vy = (this.boomerang.velocity.vy / currentSpeed) * maxSpeed;
+        }
+
+        this.applyVelocity(dt);
+
+        // Die instantly if it leaves the arena
+        const { x, y } = this.boomerang.transform;
+        const r = this.boomerang.radius;
+        if (x + r < 0 || x - r > 1280 || y + r < 0 || y - r > 720) {
+            this.boomerang.isDead = true;
+        }
     }
 
     private enterCharging(): void {
         this.boomerang.state = BoomerangState.CHARGING;
-        
-        // Lock player movement
         this.player.velocity = { vx: 0, vy: 0 };
         this.player.targetVelocity = { vx: 0, vy: 0 };
-        
         this.boomerang.transform.x = this.player.transform.x;
         this.boomerang.transform.y = this.player.transform.y;
         this.boomerang.chargeTimer = 0;
@@ -81,7 +135,6 @@ export class BoomerangController {
                        this.player.state !== PlayerState.BLOCKING;
 
         if (isReady) {
-            // B2 (BULLET): Instant fire, no charging
             if (this.boomerang.hasModifier(ModifierId.BULLET)) {
                 this.fireBullet();
             } else {
@@ -93,7 +146,6 @@ export class BoomerangController {
     private fireBullet(): void {
         if (!this.spawnCallback) return;
 
-        // Spawn a clone instantly, leaving the base boomerang in HIDDEN
         const bullet = this.boomerang.clone();
         bullet.state = BoomerangState.LIVE;
         bullet.currentDamage = bullet.baseDamage; 
@@ -119,14 +171,12 @@ export class BoomerangController {
         bullet.transform.x += dirX * safeDistance;
         bullet.transform.y += dirY * safeDistance;
 
-        // If the bullet ALSO has divide, the clone spawns its own clones!
         if (bullet.hasModifier(ModifierId.DIVIDE) && !bullet.hasDivided) {
             bullet.hasDivided = true; 
             this.spawnAngledClone(bullet, bullet.velocity.vx, bullet.velocity.vy, 20);
             this.spawnAngledClone(bullet, bullet.velocity.vx, bullet.velocity.vy, -20);
         }
 
-        // Send the bullet to the engine
         this.spawnCallback(bullet);
     }
 
@@ -140,7 +190,6 @@ export class BoomerangController {
         const dmgMultiplier = 1.0 + (chargePercent * (this.MAX_DAMAGE_MULTIPLIER - 1.0));
         this.boomerang.currentDamage = this.boomerang.baseDamage * dmgMultiplier;
 
-        // Release to throw
         if (!this.input.isLeftMouseDown) {
             this.boomerang.state = BoomerangState.LIVE;
             
@@ -159,16 +208,12 @@ export class BoomerangController {
             this.boomerang.velocity.vx = dirX * throwSpeed;
             this.boomerang.velocity.vy = dirY * throwSpeed;
 
-            // Spawn Offset to prevent instant self-catch
             const safeDistance = this.player.radius + this.boomerang.radius + 1;
             this.boomerang.transform.x += dirX * safeDistance;
             this.boomerang.transform.y += dirY * safeDistance;
 
-            // B3 (DIVIDE): Spawn clones upon initial throw
             if (this.boomerang.hasModifier(ModifierId.DIVIDE) && !this.boomerang.hasDivided && this.spawnCallback) {
                 this.boomerang.hasDivided = true; 
-
-                // Pass `this.boomerang` as the parent
                 this.spawnAngledClone(this.boomerang, this.boomerang.velocity.vx, this.boomerang.velocity.vy, 20);
                 this.spawnAngledClone(this.boomerang, this.boomerang.velocity.vx, this.boomerang.velocity.vy, -20);
             }
@@ -201,7 +246,6 @@ export class BoomerangController {
         const currentSpeed = Math.sqrt(this.boomerang.velocity.vx ** 2 + this.boomerang.velocity.vy ** 2);
         this.boomerang.distanceTraveled += currentSpeed * dt;
 
-        // Canvas Boundary Check
         const { x, y } = this.boomerang.transform;
         const r = this.boomerang.radius;
         if (x + r < 0 || x - r > 1280 || y + r < 0 || y - r > 720) {
@@ -219,13 +263,12 @@ export class BoomerangController {
     }
 
     private handleGhost(dt: number): void {
-        this.applyFriction(1500, dt);
+        this.applyFriction(5000, dt);
         this.applyVelocity(dt);
         this.checkRecallInput();
     }
 
     private handleRecall(dt: number): void {
-        // B2 (BULLET): Cannot be recalled
         if (this.boomerang.hasModifier(ModifierId.BULLET)) {
             this.boomerang.state = BoomerangState.GHOST;
             return;
@@ -238,7 +281,6 @@ export class BoomerangController {
 
         this.boomerang.recallTimer += dt;
 
-        // B1 (TELEKINESIS): Target the mouse instead of the player
         let targetX = this.player.transform.x;
         let targetY = this.player.transform.y;
 
@@ -265,7 +307,6 @@ export class BoomerangController {
         const targetVx = dirX * currentSpeed;
         const targetVy = dirY * currentSpeed;
 
-        // Steering behavior to allow bounce momentum to arc
         const turnSpeed = 15; 
         this.boomerang.velocity.vx += (targetVx - this.boomerang.velocity.vx) * turnSpeed * dt;
         this.boomerang.velocity.vy += (targetVy - this.boomerang.velocity.vy) * turnSpeed * dt;

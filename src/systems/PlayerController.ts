@@ -8,6 +8,7 @@ import { Boomerang } from '../entities/Boomerang';
 import { ModifierId } from '../core/Modifiers';
 import { BoomerangState } from '../core/interfaces';
 import { Explosion } from '../entities/Explosion';
+import { Trail } from '../entities/Trail'; // NEW IMPORT
 
 export class PlayerController {
     private readonly LERP_TIME = 0.075; 
@@ -17,11 +18,17 @@ export class PlayerController {
         private input: InputManager,
         private timerSystem: TimerSystem,
         private boomerangs: Boomerang[],
-        private explosions: Explosion[]
+        private explosions: Explosion[],
+        private allPlayers: Player[],
+        private trails: Trail[] // NEW: Inject trails array
     ) {}
 
     public update(dt: number): void {
         this.player.updateTimers(dt);
+        
+        if (this.player.slowTimer !== undefined) {
+            this.player.slowTimer -= dt;
+        }
         
         if (this.player.state !== PlayerState.KNOCKED_BACK && this.player.state !== PlayerState.DEAD) {
             this.handleAiming();
@@ -66,8 +73,10 @@ export class PlayerController {
             vy /= length;
         }
 
-        this.player.targetVelocity.vx = vx * this.player.speed;
-        this.player.targetVelocity.vy = vy * this.player.speed;
+        const effectiveSpeed = this.player.slowTimer > 0 ? this.player.speed * 0.4 : this.player.speed;
+
+        this.player.targetVelocity.vx = vx * effectiveSpeed;
+        this.player.targetVelocity.vy = vy * effectiveSpeed;
 
         if (vx !== 0 || vy !== 0) {
             this.player.state = PlayerState.MOVING;
@@ -84,7 +93,7 @@ export class PlayerController {
             this.player.velocity = { vx: 0, vy: 0 };
             this.player.targetVelocity = { vx: 0, vy: 0 };
             
-            this.triggerDemomaniac();
+            this.triggerBlockModifiers();
             return;
         }
 
@@ -100,15 +109,16 @@ export class PlayerController {
         }
     }
 
-    private triggerDemomaniac(): void {
+    private triggerBlockModifiers(): void {
+        // B5 (DEMO)
         const eligibleBoomerangs = this.boomerangs.filter(b => 
             b.ownerId === this.player.id && 
-            b.hasModifier(ModifierId.DEMOMANIAC) &&
+            b.hasModifier(ModifierId.DEMO) &&
             (b.state === BoomerangState.LIVE || b.state === BoomerangState.GHOST || b.state === BoomerangState.DECELERATING)
         );
 
         eligibleBoomerangs.forEach((boomerang, index) => {
-            const delay = index * 0.1; // 0.1s stagger
+            const delay = index * 0.1; 
             
             this.timerSystem.setTimer(delay, () => {
                 if (boomerang.state !== BoomerangState.HIDDEN) {
@@ -116,6 +126,46 @@ export class PlayerController {
                 }
             });
         });
+
+        // B6 (REVIVE - Ghost Homing Attack)
+        const ghostBoomerangs = this.boomerangs.filter(b => 
+            b.ownerId === this.player.id && 
+            b.hasModifier(ModifierId.REVIVE) &&
+            b.state === BoomerangState.GHOST &&
+            !b.isReviveAttacking
+        );
+
+        if (ghostBoomerangs.length > 0) {
+            const opponent = this.allPlayers.find(p => p.id !== this.player.id);
+            if (opponent) {
+                const targetX = opponent.transform.x;
+                const targetY = opponent.transform.y;
+
+                ghostBoomerangs.forEach((boomerang, index) => {
+                    const delay = index * 0.1; 
+                    
+                    this.timerSystem.setTimer(delay, () => {
+                        if (boomerang.state === BoomerangState.GHOST && !boomerang.isDead) {
+                            boomerang.isReviveAttacking = true;
+                            
+                            // NEW: Clear memory so it can hit people again
+                            boomerang.hitIds.clear(); 
+                            
+                            let dx = targetX - boomerang.transform.x;
+                            let dy = targetY - boomerang.transform.y;
+                            let dist = Math.sqrt(dx * dx + dy * dy);
+                            
+                            if (dist === 0) { dx = 1; dist = 1; }
+                            
+                            boomerang.reviveTargetX = dx / dist;
+                            boomerang.reviveTargetY = dy / dist;
+                            
+                            boomerang.state = BoomerangState.LIVE; 
+                        }
+                    });
+                });
+            }
+        }
     }
 
     private detonateBoomerang(boomerang: Boomerang): void {
@@ -127,6 +177,18 @@ export class PlayerController {
         );
         
         this.explosions.push(blast);
+
+        // SYNERGY: Demo + Snail leaves a massive trail at the explosion site
+        if (boomerang.hasModifier(ModifierId.SNAIL)) {
+            this.trails.push(new Trail(
+                `trail_blast_${Date.now()}_${Math.random()}`,
+                this.player.id,
+                boomerang.transform.x,
+                boomerang.transform.y,
+                150, // Massive radius
+                5.0
+            ));
+        }
 
         if (boomerang.isTemporary) {
             boomerang.isDead = true;
@@ -170,5 +232,4 @@ export class PlayerController {
         if (Math.abs(target - current) <= maxDelta) return target;
         return current + Math.sign(target - current) * maxDelta;
     }
-
 }

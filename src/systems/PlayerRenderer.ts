@@ -1,80 +1,66 @@
 // src/systems/PlayerRenderer.ts
 import { Player } from '../entities/Player';
 import { PlayerState } from '../core/interfaces';
+import { Theme } from '../core/Theme';
 
 export class PlayerRenderer {
     constructor(private player: Player, private ctx: CanvasRenderingContext2D) {}
 
     public render(): void {
+        if (this.player.state === PlayerState.DEAD) return;
+
         const { x, y } = this.player.transform;
         const radius = this.player.radius;
 
         this.ctx.save();
         
-        // Move canvas origin to player position and rotate it
+        // 1. Draw Player Body & Indicator (Requires Rotation)
         this.ctx.translate(x, y);
         this.ctx.rotate(this.player.rotation);
 
-        // 1. Draw Player Body
+        // Player Body
         this.ctx.beginPath();
         this.ctx.arc(0, 0, radius, 0, Math.PI * 2);
-
-        switch (this.player.state) {
-            case PlayerState.DASHING:
-                this.ctx.fillStyle = '#00d2d3'; // Keep cyan for i-frame visibility
-                break;
-            case PlayerState.BLOCKING:
-                this.ctx.fillStyle = '#feca57'; 
-                this.ctx.lineWidth = 4;
-                this.ctx.strokeStyle = '#ff9f43';
-                this.ctx.stroke(); 
-                break;
-            default:
-                this.ctx.fillStyle = '#00A2FF'; // New Theme: Player Body
-                break;
-        }
+        this.ctx.fillStyle = Theme.playerFill;
         this.ctx.fill();
-        this.ctx.closePath();
-
-        // 2. Draw Aiming Indicator (">" symbol)
-        // Since we are rotated, "forward" is always positive X
-        this.ctx.beginPath();
-        this.ctx.moveTo(radius - 12, -8);  // Top point
-        this.ctx.lineTo(radius - 2, 0);    // Right point (tip)
-        this.ctx.lineTo(radius - 12, 8);   // Bottom point
-        
-        this.ctx.strokeStyle = '#80D1FF';  // New Theme: Player Indicator
-        this.ctx.lineWidth = 3;
-        this.ctx.lineCap = 'round';
-        this.ctx.lineJoin = 'round';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeStyle = this.player.color;
         this.ctx.stroke();
         this.ctx.closePath();
 
-        // Restore canvas origin and rotation for the next draw call
+        // Direction Indicator
+        this.ctx.beginPath();
+        this.ctx.moveTo(radius + 2, 0);
+        this.ctx.lineTo(radius - 6, -5);
+        this.ctx.lineTo(radius - 6, 5);
+        this.ctx.fillStyle = this.player.color;
+        this.ctx.fill();
+        this.ctx.closePath();
+
+        // Restore context so the HP bar doesn't spin with the player
         this.ctx.restore();
-        
-        // Save again for UI translation without rotation
+
+        // 2. Draw Health Bar (No Rotation)
         this.ctx.save();
         this.ctx.translate(x, y);
 
-        // Draw HP Bar if not dead
-        if (this.player.state !== PlayerState.DEAD) {
-            const barWidth = 40;
-            const barHeight = 6;
-            const hpPercent = Math.max(this.player.hp / 100, 0);
+        const barWidth = 36;
+        const barHeight = 4;
+        const yOffset = -radius - 16;
+        
+        // Scale the percentage properly depending on the entity
+        const maxHp = this.player.id === 'dummy_1' ? 500 : 100;
+        const hpPercent = Math.max(0, Math.min(1, this.player.hp / maxHp));
 
-            // Background (Red)
-            this.ctx.fillStyle = '#ff4757';
-            this.ctx.fillRect(-barWidth / 2, -radius - 15, barWidth, barHeight);
-            
-            // Foreground (Green)
-            this.ctx.fillStyle = '#2ed573';
-            this.ctx.fillRect(-barWidth / 2, -radius - 15, barWidth * hpPercent, barHeight);
-            
-            // Border
-            this.ctx.strokeStyle = '#272727';
-            this.ctx.lineWidth = 1;
-            this.ctx.strokeRect(-barWidth / 2, -radius - 15, barWidth, barHeight);
+        // Container (Transparent center, faint white border)
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; 
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(-barWidth / 2, yOffset, barWidth, barHeight);
+
+        // Fill (Solid White)
+        if (hpPercent > 0) {
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fillRect(-barWidth / 2, yOffset, barWidth * hpPercent, barHeight);
         }
 
         this.ctx.restore();

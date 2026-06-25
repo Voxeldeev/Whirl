@@ -1,14 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Whirl - Arena Prototype</title>
-  </head>
-  <body>
-    <div id="game-container">
-      <canvas id="gameCanvas" width="1280" height="720"></canvas>
+<head>
+    <meta charset="UTF-8">
+    <title>Whirl - Arena</title>
+    <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+
+    <div id="lobby-ui" class="lobby-overlay">
+        <div class="lobby-left">
+          <div class="customization-column">
+              <div class="player-customization">
+                  <div class="preview-box">
+                      <div id="player-sprite" class="player-sprite">
+                          <div class="player-indicator"></div>
+                      </div>
+                  </div>
+                  <div class="color-options-grid" id="color-options"></div>
+              </div>
+          </div>
+
+          <div class="modifier-column">
+              <div class="equipped-slots">
+                  <div class="slot orange-slot" id="slot-a" data-type="A"><span class="slot-label">CLASS A</span></div>
+                  <div class="slot yellow-slot" id="slot-b1" data-type="B"><span class="slot-label">CLASS B</span></div>
+                  <div class="slot yellow-slot" id="slot-b2" data-type="B"><span class="slot-label">CLASS B</span></div>
+              </div>
+              <div class="card-grid" id="card-grid"></div>
+          </div>
+      </div>
+
+        <div class="lobby-right">
+            <h1 class="game-title">WHIRL</h1>
+            <div class="network-status" id="net-status">OFFLINE</div>
+            <div class="room-code-display" id="room-code">---</div>
+            <div class="network-controls" id="net-controls">
+                <button id="btn-host" class="btn primary">HOST MATCH</button>
+                <div class="join-group">
+                    <input type="text" id="input-code" placeholder="ENTER CODE" maxlength="5">
+                    <button id="btn-join" class="btn secondary">JOIN</button>
+                </div>
+            </div>
+            <button id="btn-start" class="btn pulse hidden">START MATCH</button>
+        </div>
     </div>
+
+    <canvas id="gameCanvas" width="1280" height="720"></canvas>
+    
     <script type="module" src="/src/main.ts"></script>
-  </body>
+</body>
 </html>

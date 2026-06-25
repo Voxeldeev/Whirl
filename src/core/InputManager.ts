@@ -91,4 +91,23 @@ export class InputManager {
         this.keysPressedThisFrame.clear();
         this.wasLeftMousePressed = false;
     }
+
+    // NEW: Extract raw state for network transmission
+    public exportInputState() {
+        return {
+            keys: {
+                w: this.isKeyHeld('KeyW'),
+                a: this.isKeyHeld('KeyA'),
+                s: this.isKeyHeld('KeyS'),
+                d: this.isKeyHeld('KeyD'),
+                space: this.isKeyHeld('Space')
+            },
+            mouse: {
+                x: Math.round(this.mouseX),
+                y: Math.round(this.mouseY),
+                leftDown: this.isLeftMouseDown,
+                rightDown: this.isRightMouseDown
+            }
+        };
+    }
 }

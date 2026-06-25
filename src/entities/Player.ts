@@ -1,5 +1,6 @@
 // src/entities/Player.ts
 import { Transform, Velocity, PlayerState } from '../core/interfaces';
+import { Theme } from '../core/Theme';
 
 export class Player {
     public id: string;
@@ -8,6 +9,7 @@ export class Player {
     public targetVelocity: Velocity; // New: For interpolation
     public rotation: number = 0;     // New: Facing angle in radians
     public state: PlayerState = PlayerState.IDLE;
+    public color: string = Theme.playerDefaultColor;
     
     // Core Stats
     public hp: number = 100;
@@ -18,6 +20,7 @@ export class Player {
     public stateTimer: number = 0;
     public dashCooldown: number = 0;
     public blockCooldown: number = 0;
+    public slowTimer: number = 0;
 
     constructor(id: string, startX: number, startY: number) {
         this.id = id;
